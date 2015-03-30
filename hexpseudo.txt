@@ -1,0 +1,44 @@
+setBaseAddress:
+tmp = pb();
+base = pb();
+base = (base <<24) + (tmp<<16)
+
+writeData:
+offset = base+addr
+b=parseByte
+for(i=0;i<CNT;i++)
+  b= pb();
+  *(offset+i) = b;
+
+parseLine:
+clearCRC();
+b = pb();
+if (b!=':')
+  return ERR;
+CNT=pb();
+
+tmp=pb();
+addr = pb();
+addr += tmp<<8;
+
+tmp=pb();
+case 0:
+  writeData();
+case 1:
+  return EOF;
+case 4:
+  setBaseAddr();
+default:
+  return ERR;
+
+CheckCRC();
+
+main:
+while(1) {
+  findRecord();
+  status=parseLine();
+  if (status==ERR)
+    print("Error");
+  elif (status == EOF)
+    jump(RESETVECTOR);
+}
