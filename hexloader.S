@@ -8,21 +8,48 @@
 #r10 = tmp
 #r11 = CNT
 #r12 r9 shadowed	
+#r13 = r12 shadowed
+#r14 tmp (in parseHexChar)
 .globl main
 	.org 0x100
 main:	
 	l.movhi r0, 0
 	l.jal uartInit
 	l.nop
-	l.jal findRecord
-	# l.jal uartRead
+1:	l.jal findRecord #Find next record delimiter
+	l.nop
+	#clearCRC
+
+	#Get Byte count field and store to r11
+	l.jal parseHexChar
+	l.nop
+	l.nop 0x2
+	l.nop 0x1
+	l.add r11, r3, r0
 	l.nop
 
+	#Get Address and store to r7
+	l.jal parseByte
+	l.nop
+
+	l.slli r7, r3, 8
+	l.jal parseHexChar
+	l.nop
+
+	l.add r7, r7, r3
+
+	l.or r3, r7, r0
+
+	#l.j 1b
+	l.nop
 	l.nop 0x1
+	l.nop 0x0
 	
 err:
+	l.ori r3, r0, 0xdead
+	l.nop 0x2
 	l.nop 0x1
-	l.nop 0x1
+	l.nop 0x0
 #r4 = UART Base address
 #r5 = Register value
 uartInit:
@@ -72,7 +99,6 @@ uartRead:
 	l.bf 1b
 	l.nop
 	l.lbz r3, 0(r8) #Read word from UART to r3
-	l.nop 0x2
 	l.jr r9
 	l.nop
 	
@@ -104,11 +130,9 @@ writeData:
 
 findRecord:
 	l.or r12, r9, r0 #Save return address to r12
-	l.addi r3, r0, 48
 1:	l.jal uartRead
 	l.nop
 	l.sfeqi r3, ':'
-	l.nop 0x3
 	l.bnf 1b
 	l.nop
 	l.jr r12
@@ -116,37 +140,57 @@ findRecord:
 
 #Valid chars are 0-9 (0x30-0x39) and A-F (0x41-0x46)
 parseByte:
+	l.or r12, r9, r0 #Save return address to r12
 	
 	l.jal uartRead
 	l.nop
-	l.nop
+	#l.nop 0x2
 
 	#Error if r3 < 0
-	l.sfltui r3, '0'
+	l.sfleui r3, '0'
 	l.bf err
 	l.nop
 
+	#OK
+
 	#Next check if r3 > 9
 	l.sfltui r3, '9'
-	l.bf 1
+	l.bnf 1f
 	l.nop
 
 	#If 0-9, subtract '0' and return
 	l.addi r3, r3, -48
-	l.jr r9
+	l.jr r12
 	l.nop
 
 	#r3 is > 9 at this point
 	#Error if r3 < A
 1:	l.sfleui r3, 'A'
+#	l.nop 0x1
 	l.bf err
 	l.nop
+
 
 	#Error if r3 > F
 	l.sfleui r3, 'F'
 	l.bnf err
 	l.nop
 
+
 	#If A-F subtract ('A'-10) and return
 	l.addi r3, r3, -55
-	l.jr r9
+	l.jr r12
+	l.nop
+
+parseHexChar:
+	l.or r13, r9, r0 #Save return address to r13
+	l.jal parseByte
+	l.nop
+
+	l.slli r14, r3, 4
+
+	l.jal parseByte
+	l.nop
+	l.or r3, r14, r3
+	l.jr r13
+	l.nop
